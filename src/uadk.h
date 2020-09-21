@@ -48,3 +48,5 @@ extern wd_do_cipher_sync_t p_wd_do_cipher_sync;
 extern wd_do_cipher_async_t p_wd_do_cipher_async;
 extern wd_cipher_poll_ctx_t p_wd_cipher_poll_ctx;
 
+extern int uadk_bind_cipher(ENGINE *e);
+

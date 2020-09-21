@@ -74,27 +74,20 @@ static int uadk_init(ENGINE *e)
 	wd_dso = dlopen("libwd.so", RTLD_NOW);
 	if (wd_dso == NULL)
 		printf("dlopen - %s\n", dlerror());
-	printf("gzf wd dso=0x%x\n", wd_dso);
 	BIND(wd_dso, wd_get_accel_list);
 	BIND(wd_dso, wd_free_list_accels);
 	BIND(wd_dso, wd_request_ctx);
 	BIND(wd_dso, wd_release_ctx);
 
-	printf("gzf p_wd_get_accel_list=0x%x wd_free_list_accels=0x%x, 0x%x\n", p_wd_get_accel_list, p_wd_free_list_accels, p_wd_request_ctx, p_wd_release_ctx);
-
 	wd_sec_dso = dlopen("libhisi_sec.so", RTLD_NOW);
 	if (wd_sec_dso == NULL)
 		printf("dlopen - %s\n", dlerror());
-	printf("gzf sec dso=0x%x\n", wd_sec_dso);
 	BIND(wd_sec_dso, wd_digest_init);
 	BIND(wd_sec_dso, wd_digest_uninit);
-
-	printf("0x%x 0x%x\n", p_wd_digest_init, p_wd_digest_uninit);
 
 	wd_crypto_dso = dlopen("libwd_crypto.so", RTLD_NOW);
 	if (wd_crypto_dso == NULL)
 		printf("dlopen - %s\n", dlerror());
-	printf("gzf crypto dso=0x%x\n", wd_crypto_dso);
 
 	BIND(wd_crypto_dso, wd_cipher_init);
 	BIND(wd_crypto_dso, wd_cipher_uninit);
@@ -105,13 +98,9 @@ static int uadk_init(ENGINE *e)
 	BIND(wd_crypto_dso, wd_do_cipher_async);
 	BIND(wd_crypto_dso, wd_cipher_poll_ctx);
 
-	printf("0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x\n", p_wd_cipher_init, p_wd_cipher_uninit, p_wd_cipher_alloc_sess,
-		p_wd_cipher_free_sess, p_wd_cipher_set_key, p_wd_do_cipher_sync, p_wd_do_cipher_async, p_wd_cipher_poll_ctx);
-
 	list = p_wd_get_accel_list("cipher");
 	if (!list)
 		return -ENODEV;
-	printf("gzf %s list=0x%p\n", __func__, list);
 
     return 1;
 }
@@ -143,6 +132,9 @@ static int bind_fn(ENGINE *e, const char *id)
         fprintf(stderr, "bind failed\n");
         return 0;
     }
+
+    if (!uadk_bind_cipher(e))
+	    fprintf(stderr, "uadk bind cipher failed\n");
 
     return 1;
 }
