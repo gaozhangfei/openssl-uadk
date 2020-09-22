@@ -19,22 +19,37 @@
 #include <openssl/engine.h>
 #include "uadk.h"
 
-static int cipher_nids[] = { NID_sm4_ctr, 0 };
+struct cipher_priv_ctx {
+	int enc;
+};
+typedef struct cipher_priv_ctx cipher_priv_ctx_t;
+
+static int cipher_nids[] = {
+	NID_aes_128_cbc,
+	//NID_aes_192_cbc,
+	0,
+	};
+
+static EVP_CIPHER* uadk_aes_128_cbc;
+static EVP_CIPHER* uadk_aes_192_cbc;
 
 static int uadk_engine_ciphers(ENGINE *e, const EVP_CIPHER **cipher,
                                const int **nids, int nid)
 {
 	int ok = 1;
-	printf("gzf %s cipher=0x%x\n", __func__, cipher);
+	printf("gzf %s cipher=0x%x nid=%d\n", __func__, cipher, nid);
 
 	if (!cipher) {
 		*nids = cipher_nids;
-		return ((sizeof(cipher_nids) - 1) / sizeof(cipher_nids[0]));
+		return (sizeof(cipher_nids) - 1) / sizeof(cipher_nids[0]);
 	}
 
 	switch(nid) {
-	case NID_sm4_ctr:
-		*cipher = (EVP_CIPHER *)EVP_sm4_ctr();
+	case NID_aes_128_cbc:
+		*cipher = uadk_aes_128_cbc;
+		break;
+	case NID_aes_192_cbc:
+		*cipher = uadk_aes_192_cbc;
 		break;
 	default:
 		ok = 0;
@@ -45,9 +60,83 @@ static int uadk_engine_ciphers(ENGINE *e, const EVP_CIPHER **cipher,
 	return ok;
 }
 
+static int uadk_cipher_init(EVP_CIPHER_CTX *ctx, const unsigned char *key,
+			    const unsigned char *iv, int enc)
+{
+	printf("gzf %s\n", __func__);
+	return 1;
+}
+
+static int uadk_cipher_cleanup(EVP_CIPHER_CTX *ctx)
+{
+	printf("gzf %s\n", __func__);
+	return 1;
+}
+
+static int uadk_do_cipher(EVP_CIPHER_CTX *ctx, unsigned char *out,
+			  const unsigned char *in, size_t inlen)
+{
+	printf("gzf %s\n", __func__);
+	return 1;
+}
+
+
+#define UADK_CIPHER_DESCR(name, block_size, key_size, iv_len, flags,\
+	init, cipher, cleanup, set_params, get_params, ctrl)\
+	uadk_##name = EVP_CIPHER_meth_new(NID_##name, block_size, key_size);\
+	if (uadk_##name == 0 ||\
+		!EVP_CIPHER_meth_set_iv_length(uadk_##name, iv_len) ||\
+		!EVP_CIPHER_meth_set_flags(uadk_##name, flags) ||\
+		!EVP_CIPHER_meth_set_impl_ctx_size(uadk_##name, sizeof(cipher_priv_ctx_t)) ||\
+		!EVP_CIPHER_meth_set_init(uadk_##name, init) ||\
+		!EVP_CIPHER_meth_set_do_cipher(uadk_##name, cipher) ||\
+		!EVP_CIPHER_meth_set_cleanup(uadk_##name, cleanup) ||\
+		!EVP_CIPHER_meth_set_set_asn1_params(uadk_##name, set_params) ||\
+		!EVP_CIPHER_meth_set_get_asn1_params(uadk_##name, get_params) ||\
+		!EVP_CIPHER_meth_set_ctrl(uadk_##name, ctrl))\
+		return 0;\
+
 int uadk_bind_cipher(ENGINE *e)
 {
+	int ret = 0;
+	/*
+	ret = UADK_CIPHER_DESCR(aes_128_cbc, 16, 16, 16, EVP_CIPH_CBC_MODE,
+			  uadk_cipher_init, uadk_do_cipher, uadk_cipher_cleanup,
+			  EVP_CIPHER_set_asn1_iv, EVP_CIPHER_get_asn1_iv, NULL);
+	ret = UADK_CIPHER_DESCR(aes_192_cbc, 16, 24, 16, EVP_CIPH_CBC_MODE,
+			  uadk_cipher_init, uadk_do_cipher, uadk_cipher_cleanup,
+			  EVP_CIPHER_set_asn1_iv, EVP_CIPHER_get_asn1_iv, NULL);
+	*/
 
-    if (!ENGINE_set_ciphers(e, uadk_engine_ciphers))
-	    return 0;
+	uadk_aes_128_cbc = EVP_CIPHER_meth_new(NID_aes_128_cbc, 16, 16);
+	printf("gzf %s uadk_aes_128_cbc=0x%x\n", __func__, uadk_aes_128_cbc);
+		ret = EVP_CIPHER_meth_set_iv_length(uadk_aes_128_cbc, 16);
+	printf("gzf %s ret=%d\n", __func__, ret);
+		ret = EVP_CIPHER_meth_set_flags(uadk_aes_128_cbc, EVP_CIPH_CBC_MODE);
+	printf("gzf %s ret=%d\n", __func__, ret);
+		ret = EVP_CIPHER_meth_set_impl_ctx_size(uadk_aes_128_cbc, sizeof(cipher_priv_ctx_t));
+	printf("gzf %s ret=%d\n", __func__, ret);
+		ret = EVP_CIPHER_meth_set_init(uadk_aes_128_cbc, uadk_cipher_init);
+	printf("gzf %s ret=%d\n", __func__, ret);
+		ret = EVP_CIPHER_meth_set_do_cipher(uadk_aes_128_cbc, uadk_do_cipher);
+	printf("gzf %s ret=%d\n", __func__, ret);
+		ret = EVP_CIPHER_meth_set_cleanup(uadk_aes_128_cbc, uadk_cipher_cleanup);
+	printf("gzf %s ret=%d\n", __func__, ret);
+		ret = EVP_CIPHER_meth_set_set_asn1_params(uadk_aes_128_cbc, EVP_CIPHER_set_asn1_iv);
+	printf("gzf %s ret=%d\n", __func__, ret);
+		ret = EVP_CIPHER_meth_set_get_asn1_params(uadk_aes_128_cbc, EVP_CIPHER_get_asn1_iv);
+	printf("gzf %s ret=%d\n", __func__, ret);
+
+
+	return ENGINE_set_ciphers(e, uadk_engine_ciphers);
+	return ENGINE_set_ciphers(e, uadk_engine_ciphers) &&
+		ENGINE_register_ciphers(e) &&
+		EVP_add_cipher(uadk_aes_128_cbc) &&
+		EVP_add_cipher(uadk_aes_192_cbc);
+}
+
+void uadk_destroy_cipher()
+{
+	EVP_CIPHER_meth_free(uadk_aes_128_cbc);
+	uadk_aes_128_cbc = 0;
 }

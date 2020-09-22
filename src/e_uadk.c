@@ -56,7 +56,10 @@ static void uadk_destructor(void)
 static int uadk_destroy(ENGINE *e)
 {
 	printf("gzf %s\n", __func__);
-    return 1;
+	uadk_destroy_cipher();
+	uadk_destroy_digest();
+
+	return 1;
 }
 
 
@@ -102,13 +105,13 @@ static int uadk_init(ENGINE *e)
 	if (!list)
 		return -ENODEV;
 
-    return 1;
+	return 1;
 }
 
 static int uadk_finish(ENGINE *e)
 {
 	printf("gzf %s\n", __func__);
-    return 1;
+	return 1;
 }
 
 
@@ -135,6 +138,8 @@ static int bind_fn(ENGINE *e, const char *id)
 
     if (!uadk_bind_cipher(e))
 	    fprintf(stderr, "uadk bind cipher failed\n");
+    if (!uadk_bind_digest(e))
+	    fprintf(stderr, "uadk bind digest failed\n");
 
     return 1;
 }
