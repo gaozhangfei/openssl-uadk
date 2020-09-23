@@ -43,28 +43,6 @@ wd_cipher_poll_ctx_t p_wd_cipher_poll_ctx;
 __attribute__((constructor))
 static void uadk_constructor(void)
 {
-	printf("gzf %s\n", __func__);
-}
-
-__attribute__((destructor))
-static void uadk_destructor(void)
-{
-	printf("gzf %s\n", __func__);
-}
-
-/* Destructor (complements the "ENGINE_uadk()" constructor) */
-static int uadk_destroy(ENGINE *e)
-{
-	printf("gzf %s\n", __func__);
-	uadk_destroy_cipher();
-	uadk_destroy_digest();
-
-	return 1;
-}
-
-
-static int uadk_init(ENGINE *e)
-{
 	void *dso = NULL;
 	void *wd_dso = NULL;
 	void *wd_sec_dso = NULL;
@@ -102,9 +80,30 @@ static int uadk_init(ENGINE *e)
 	BIND(wd_crypto_dso, wd_cipher_poll_ctx);
 
 	list = p_wd_get_accel_list("cipher");
-	if (!list)
-		return -ENODEV;
+//	if (!list)
+//		return -ENODEV;
+}
 
+__attribute__((destructor))
+static void uadk_destructor(void)
+{
+	printf("gzf %s\n", __func__);
+}
+
+/* Destructor (complements the "ENGINE_uadk()" constructor) */
+static int uadk_destroy(ENGINE *e)
+{
+	printf("gzf %s\n", __func__);
+	uadk_destroy_cipher();
+	uadk_destroy_digest();
+
+	return 1;
+}
+
+
+static int uadk_init(ENGINE *e)
+{
+	printf("gzf %s\n", __func__);
 	return 1;
 }
 
@@ -122,9 +121,8 @@ static int uadk_finish(ENGINE *e)
 static int bind_fn(ENGINE *e, const char *id)
 {
     if (id && (strcmp(id, engine_uadk_id) != 0)) {
-        fprintf(stderr, "wrong engine id\n");
-        fprintf(stderr, "id = %s wrong engine id\n", id);
-        return 0;
+	    fprintf(stderr, "wrong engine id\n");
+	    return 0;
     }
 
     if (!ENGINE_set_id(e, engine_uadk_id) ||
@@ -132,8 +130,8 @@ static int bind_fn(ENGINE *e, const char *id)
         !ENGINE_set_init_function(e, uadk_init) ||
         !ENGINE_set_finish_function(e, uadk_finish) ||
         !ENGINE_set_name(e, engine_uadk_name)) {
-        fprintf(stderr, "bind failed\n");
-        return 0;
+	    fprintf(stderr, "bind failed\n");
+	    return 0;
     }
 
     if (!uadk_bind_cipher(e))
