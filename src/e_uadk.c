@@ -15,16 +15,64 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <dlfcn.h>
 #include <openssl/engine.h>
-
+#include "uadk.h"
 
 /* Constants used when creating the ENGINE */
 static const char *engine_uadk_id = "uadk";
 static const char *engine_uadk_name = "uadk hardware engine support";
 
+wd_get_accel_list_t p_wd_get_accel_list;
+wd_free_list_accels_t p_wd_free_list_accels;
+wd_request_ctx_t p_wd_request_ctx;
+wd_release_ctx_t p_wd_release_ctx;
+wd_digest_init_t p_wd_digest_init;
+wd_digest_uninit_t p_wd_digest_uninit;
+wd_cipher_init_t p_wd_cipher_init;
+wd_cipher_uninit_t p_wd_cipher_uninit;
+wd_cipher_alloc_sess_t p_wd_cipher_alloc_sess;
+wd_cipher_free_sess_t p_wd_cipher_free_sess;
+wd_cipher_set_key_t p_wd_cipher_set_key;
+wd_do_cipher_sync_t p_wd_do_cipher_sync;
+wd_do_cipher_async_t p_wd_do_cipher_async;
+wd_cipher_poll_ctx_t p_wd_cipher_poll_ctx;
+
+#define BIND(dso, sym)	(p_##sym = (sym##_t)dlsym(dso, #sym))
+
 __attribute__((constructor))
 static void uadk_constructor(void)
 {
+	void *wd_dso = NULL;
+	void *wd_sec_dso = NULL;
+	void *wd_crypto_dso = NULL;
+
+	wd_dso = dlopen("libwd.so", RTLD_NOW);
+	if (wd_dso == NULL)
+		printf("dlopen - %s\n", dlerror());
+	BIND(wd_dso, wd_get_accel_list);
+	BIND(wd_dso, wd_free_list_accels);
+	BIND(wd_dso, wd_request_ctx);
+	BIND(wd_dso, wd_release_ctx);
+
+	wd_sec_dso = dlopen("libhisi_sec.so", RTLD_NOW);
+	if (wd_sec_dso == NULL)
+		printf("dlopen - %s\n", dlerror());
+	BIND(wd_sec_dso, wd_digest_init);
+	BIND(wd_sec_dso, wd_digest_uninit);
+
+	wd_crypto_dso = dlopen("libwd_crypto.so", RTLD_NOW);
+	if (wd_crypto_dso == NULL)
+		printf("dlopen - %s\n", dlerror());
+
+	BIND(wd_crypto_dso, wd_cipher_init);
+	BIND(wd_crypto_dso, wd_cipher_uninit);
+	BIND(wd_crypto_dso, wd_cipher_alloc_sess);
+	BIND(wd_crypto_dso, wd_cipher_free_sess);
+	BIND(wd_crypto_dso, wd_cipher_set_key);
+	BIND(wd_crypto_dso, wd_do_cipher_sync);
+	BIND(wd_crypto_dso, wd_do_cipher_async);
+	BIND(wd_crypto_dso, wd_cipher_poll_ctx);
 }
 
 __attribute__((destructor))
@@ -32,25 +80,56 @@ static void uadk_destructor(void)
 {
 }
 
+static int uadk_destroy(ENGINE *e)
+{
+	uadk_destroy_cipher();
+
+	return 1;
+}
+
+
+static int uadk_init(ENGINE *e)
+{
+	return 1;
+}
+
+static int uadk_finish(ENGINE *e)
+{
+	return 1;
+}
+
+
 /*
  * This stuff is needed if this ENGINE is being
  * compiled into a self-contained shared-library.
  */
 static int bind_fn(ENGINE *e, const char *id)
 {
-    if (id && (strcmp(id, engine_uadk_id) != 0)) {
-        fprintf(stderr, "wrong engine id\n");
-        fprintf(stderr, "id = %s wrong engine id\n", id);
-        return 0;
-    }
+	struct uacce_dev_list *list;
 
-    if (!ENGINE_set_id(e, engine_uadk_id) ||
-        !ENGINE_set_name(e, engine_uadk_name)) {
-        fprintf(stderr, "bind failed\n");
-        return 0;
-    }
+	if (id && (strcmp(id, engine_uadk_id) != 0)) {
+		fprintf(stderr, "wrong engine id\n");
+		return 0;
+	}
 
-    return 1;
+	if (!ENGINE_set_id(e, engine_uadk_id) ||
+	    !ENGINE_set_destroy_function(e, uadk_destroy) ||
+	    !ENGINE_set_init_function(e, uadk_init) ||
+	    !ENGINE_set_finish_function(e, uadk_finish) ||
+	    !ENGINE_set_name(e, engine_uadk_name)) {
+		fprintf(stderr, "bind failed\n");
+		return 0;
+	}
+
+	list = p_wd_get_accel_list("cipher");
+	if (list) {
+		if (!uadk_bind_cipher(e))
+			fprintf(stderr, "uadk bind cipher failed\n");
+
+		p_wd_free_list_accels(list);
+	}
+
+	return 1;
 }
 
 IMPLEMENT_DYNAMIC_CHECK_FN()
